@@ -1,12 +1,12 @@
-tutorial-objs = TutorialDetInfoCtrlObj.o TutorialSyncCtrlObj.o TutorialInterface.o TutorialCamera.o
+v4l2-objs = V4L2DetInfoCtrlObj.o V4L2SyncCtrlObj.o V4L2Interface.o V4L2Camera.o
 
-SRCS = $(tutorial-objs:.o=.cpp) 
+SRCS = $(v4l2-objs:.o=.cpp) 
 
 CXXFLAGS += -I../include -I../../../hardware/include -I../../../common/include -I../../../third-party/Processlib/core/include -pthread -fPIC -g
 
-all:	Tutorial.o
+all:	V4L2.o
 
-Tutorial.o: $(tutorial-objs)
+V4L2.o: $(v4l2-objs)
 	$(LD) -o $@ -r $+
 
 clean:
