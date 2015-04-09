@@ -55,6 +55,9 @@ namespace lima
       SyncCtrlObj*		m_sync;
       Camera*			m_cam;
       _Callback*		m_cbk;
+      CapList 	m_cap_list;
+      
+      SoftBufferCtrlObj m_buffer_ctrl_obj;
     };
   }
 }

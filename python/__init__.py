@@ -31,8 +31,8 @@ from Lima import Core
 
 cleanup_data = module_helper.load_dep_cleanup(cleanup_data)
 
-from Lima.Tutorial.limatutorial import Tutorial as _Tuto
-globals().update(_Tuto.__dict__)
+from Lima.v4l2.limav4l2 import V4L2 as _V4l2
+globals().update(_V4l2.__dict__)
 
 module_helper.load_cleanup(cleanup_data)
 

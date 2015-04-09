@@ -54,8 +54,12 @@ Interface::Interface(const char* dev_path)
   DEB_CONSTRUCTOR();
   m_cbk = new _Callback(*this);
   m_cam = new Camera(m_cbk,dev_path);
-  m_det_info = new DetInfoCtrlObj(*m_cam);
-  m_sync = new SyncCtrlObj(*m_cam);
+  m_det_info = new DetInfoCtrlObj(m_cam->getV4l2Fd());
+  m_sync = new SyncCtrlObj(m_cam->getV4l2Fd());
+  
+  m_cap_list.push_back(HwCap(m_sync));
+  m_cap_list.push_back(HwCap(m_det_info));
+  m_cap_list.push_back(HwCap(&m_buffer_ctrl_obj));
 }
 
 Interface::~Interface()
@@ -70,10 +74,7 @@ Interface::~Interface()
 void Interface::getCapList(CapList &cap_list) const
 {
   DEB_MEMBER_FUNCT();
-  
-  cap_list.push_back(HwCap(m_sync));
-  cap_list.push_back(HwCap(m_det_info));
-  cap_list.push_back(HwCap(&m_buffer_ctrl_obj));
+  cap_list = m_cap_list;
 }
 
 void Interface::reset(ResetLevel reset_level)

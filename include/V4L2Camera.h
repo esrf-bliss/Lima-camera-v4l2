@@ -66,6 +66,7 @@ namespace lima
       void stopAcq();
       void getStatus(HwInterface::StatusType& status);
       int getNbHwAcquiredFrames();
+      int getV4l2Fd() { return m_fd; }
     private:
       class _AcqThread;
       friend class _AcqThread;

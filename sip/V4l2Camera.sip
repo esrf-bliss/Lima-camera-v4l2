@@ -19,26 +19,43 @@
 // You should have received a copy of the GNU General Public License
 // along with this program; if not, see <http://www.gnu.org/licenses/>.
 //###########################################################################
-
-namespace Tutorial
+namespace V4L2
 {
-  class Interface : HwInterface
+  class Camera
   {
 %TypeHeaderCode
-#include <TutorialInterface.h>
+#include <V4L2Camera.h>
 %End
-public:
-    Interface(const char* dev_path = "/dev/video0");
-    virtual ~Interface();
+  public:
+    class Callback
+    {
+    public:
+	virtual bool newFrame(int frame_id,const unsigned char*) = 0;
+    };
 
-    virtual void getCapList(std::vector<HwCap> &cap_list /Out/) const;
-    virtual void reset(ResetLevel reset_level);
-    virtual void prepareAcq();
-    virtual void startAcq();
-    virtual void stopAcq();
-    virtual void getStatus(StatusType& status /Out/);
+    Camera(Callback*,const char* video_device = "/dev/video0");
+    ~Camera();
+    // --- Detector Info
+    void getMaxImageSize(Size& /Out/);
+
+    void getCurrImageType(ImageType& /Out/);
+    void setCurrImageType(ImageType);
       
-    virtual int getNbHwAcquiredFrames();
+    void getDetectorModel(std::string& det_model /Out/);
+    // --- Syn Obj
+    void getMinMaxExpTime(double& min /Out/,double& max /Out/);
+    void setExpTime(double  exp_time);
+    void getExpTime(double& exp_time /out/);
+      
+    void setNbHwFrames(int  nb_frames);
+    void getNbHwFrames(int& nb_frames /Out/);
+
+    // --- Acquisition interface
+    void reset(HwInterface::ResetLevel reset_level);
+    void prepareAcq();
+    void startAcq();
+    void stopAcq();
+    void getStatus(HwInterface::StatusType& status /Out/);
+    int getNbHwAcquiredFrames();
   };
 };
-
