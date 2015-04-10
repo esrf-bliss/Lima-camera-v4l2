@@ -384,11 +384,13 @@ void Camera::setExpTime(double exp_time)
 
 void Camera::setNbHwFrames(int nb_frames)
 {
+  DEB_MEMBER_FUNCT();
   m_nb_frames = nb_frames;
 }
 
 void Camera::getNbHwFrames(int &nb_frames)
 {
+  DEB_MEMBER_FUNCT();
   nb_frames = m_nb_frames;
 }
 
@@ -402,12 +404,14 @@ void Camera::reset(HwInterface::ResetLevel)
 void Camera::prepareAcq()
 {
   DEB_MEMBER_FUNCT();
-
   m_acq_frame_id = -1;
+
   for(int i = 0;
       i < sizeof(m_buffers) / sizeof(unsigned char*);++i)
     {
       m_buffer.index = i;
+      //this will fail when calling prepareAcq a second time
+      // maybe some fields in m_buffer have to be reset first.
       int ret = v4l2_ioctl(m_fd,VIDIOC_QBUF,&m_buffer);
       if(ret == -1)
 	THROW_HW_ERROR(Error) << "Error queue buff " << strerror(errno);
@@ -454,6 +458,7 @@ Camera::_AcqThread::_AcqThread(Camera& aCam) :
 {
   pthread_attr_setscope(&m_thread_attr,PTHREAD_SCOPE_PROCESS);
 }
+
 //---------------------------
 //- Camera::_AcqThread::threadFunction()
 //---------------------------
@@ -479,6 +484,7 @@ void Camera::_AcqThread::threadFunction()
       if(m_cam.m_quit) return;
 
       bool continueAcq = true;
+
       while(continueAcq && 
 	    (!m_cam.m_nb_frames || m_cam.m_acq_frame_id < (m_cam.m_nb_frames - 1)))
 	{

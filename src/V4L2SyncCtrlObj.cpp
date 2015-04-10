@@ -27,8 +27,8 @@
 using namespace lima;
 using namespace lima::V4L2;
 
-SyncCtrlObj::SyncCtrlObj(int fd) : 
-  m_fd(fd),
+SyncCtrlObj::SyncCtrlObj(Camera& cam) : 
+  m_cam(cam),
   m_nb_frames(1)
 {
 }
@@ -79,7 +79,7 @@ void SyncCtrlObj::getExpTime(double& exp_time)
   
   struct v4l2_control ctrl;
   ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
-  int ret = v4l2_ioctl(m_fd,VIDIOC_G_CTRL,&ctrl);
+  int ret = v4l2_ioctl(m_cam.getV4l2Fd(),VIDIOC_G_CTRL,&ctrl);
   if(ret == -1)
     THROW_HW_ERROR(Error) << "Can't get exposure time " << strerror(errno);
   
@@ -119,13 +119,15 @@ void SyncCtrlObj::setNbHwFrames(int nb_frames)
   DEB_MEMBER_FUNCT();
   DEB_PARAM() << DEB_VAR1(nb_frames);
   m_nb_frames = nb_frames;
+  m_cam.setNbHwFrames(nb_frames);
 }
 
 void SyncCtrlObj::getNbHwFrames(int& nb_frames)
 {
   DEB_MEMBER_FUNCT();
 
-  nb_frames = m_nb_frames;
+//  nb_frames = m_nb_frames;
+  m_cam.getNbHwFrames(nb_frames);
 
   DEB_RETURN() << DEB_VAR1(nb_frames);
 }
@@ -139,7 +141,7 @@ void SyncCtrlObj::getValidRanges(ValidRangesType& valid_ranges)
 
   struct v4l2_queryctrl query;
   query.id = V4L2_CID_EXPOSURE_ABSOLUTE;
-  int ret = v4l2_ioctl(m_fd,VIDIOC_QUERYCTRL,&query);
+  int ret = v4l2_ioctl(m_cam.getV4l2Fd(),VIDIOC_QUERYCTRL,&query);
   if(ret == -1)
     THROW_HW_ERROR(Error) << "Can't get exposure time range " << strerror(errno);
 

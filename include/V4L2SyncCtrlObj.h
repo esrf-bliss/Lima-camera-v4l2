@@ -33,7 +33,7 @@ namespace lima
       friend class Interface;
       DEB_CLASS_NAMESPC(DebModCamera, "SyncCtrlObj", "V4L2");
     public:
-      SyncCtrlObj(int fd);
+      SyncCtrlObj(Camera& cam);
       virtual ~SyncCtrlObj();
 
       virtual bool checkTrigMode(TrigMode trig_mode);
@@ -53,7 +53,7 @@ namespace lima
       virtual void getValidRanges(ValidRangesType& valid_ranges);
 
     private:
-      int m_fd;
+      Camera& m_cam;
       int m_nb_frames;
     };
   }

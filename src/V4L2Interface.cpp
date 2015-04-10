@@ -55,7 +55,7 @@ Interface::Interface(const char* dev_path)
   m_cbk = new _Callback(*this);
   m_cam = new Camera(m_cbk,dev_path);
   m_det_info = new DetInfoCtrlObj(m_cam->getV4l2Fd());
-  m_sync = new SyncCtrlObj(m_cam->getV4l2Fd());
+  m_sync = new SyncCtrlObj(*m_cam);
   
   m_cap_list.push_back(HwCap(m_sync));
   m_cap_list.push_back(HwCap(m_det_info));
@@ -85,7 +85,6 @@ void Interface::reset(ResetLevel reset_level)
 void Interface::prepareAcq()
 {
   DEB_MEMBER_FUNCT();
-
   m_cam->prepareAcq();
 }
 
