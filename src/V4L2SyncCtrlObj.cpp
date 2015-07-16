@@ -1,7 +1,7 @@
 //###########################################################################
 // This file is part of LImA, a Library for Image Acquisition
 //
-// Copyright (C) : 2009-2011
+// Copyright (C) : 2009-2015
 // European Synchrotron Radiation Facility
 // BP 220, Grenoble 38043
 // FRANCE
@@ -19,16 +19,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program; if not, see <http://www.gnu.org/licenses/>.
 //###########################################################################
-#include <cmath>
-#include <errno.h>
+//#include <cmath>
 #include "V4L2SyncCtrlObj.h"
-#include "V4L2Camera.h"
+#include "V4L2VideoCtrlObj.h"
 
 using namespace lima;
 using namespace lima::V4L2;
 
-SyncCtrlObj::SyncCtrlObj(Camera& cam) : 
-  m_cam(cam),
+SyncCtrlObj::SyncCtrlObj(VideoCtrlObj& video) : 
+  m_video(video),
   m_nb_frames(1)
 {
 }
@@ -67,25 +66,16 @@ void SyncCtrlObj::getTrigMode(TrigMode& trig_mode)
   DEB_RETURN() << DEB_VAR1(trig_mode);
 }
 
-void SyncCtrlObj::setExpTime(double)
+void SyncCtrlObj::setExpTime(double exp_time)
 {
   DEB_MEMBER_FUNCT();
-  THROW_HW_ERROR(NotSupported) << "Should never been called?!?";
+  m_video.setExpTime(exp_time);
 }
 
 void SyncCtrlObj::getExpTime(double& exp_time)
 {
   DEB_MEMBER_FUNCT();
-  
-  struct v4l2_control ctrl;
-  ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
-  int ret = v4l2_ioctl(m_cam.getV4l2Fd(),VIDIOC_G_CTRL,&ctrl);
-  if(ret == -1)
-    THROW_HW_ERROR(Error) << "Can't get exposure time " << strerror(errno);
-  
-  exp_time = 1 / (ctrl.value * 5.); // Fixed me!!!
-
-  DEB_RETURN() << DEB_VAR1(exp_time);
+  m_video.getExpTime(exp_time);
 }
 
 bool SyncCtrlObj::checkAutoExposureMode(AutoExposureMode mode) const
@@ -119,7 +109,7 @@ void SyncCtrlObj::setNbHwFrames(int nb_frames)
   DEB_MEMBER_FUNCT();
   DEB_PARAM() << DEB_VAR1(nb_frames);
   m_nb_frames = nb_frames;
-  m_cam.setNbHwFrames(nb_frames);
+  m_video.setNbHwFrames(nb_frames);
 }
 
 void SyncCtrlObj::getNbHwFrames(int& nb_frames)
@@ -127,7 +117,7 @@ void SyncCtrlObj::getNbHwFrames(int& nb_frames)
   DEB_MEMBER_FUNCT();
 
 //  nb_frames = m_nb_frames;
-  m_cam.getNbHwFrames(nb_frames);
+  m_video.getNbHwFrames(nb_frames);
 
   DEB_RETURN() << DEB_VAR1(nb_frames);
 }
@@ -139,14 +129,7 @@ void SyncCtrlObj::getValidRanges(ValidRangesType& valid_ranges)
   valid_ranges.min_lat_time = 0.;
   valid_ranges.max_lat_time = 0.;
 
-  struct v4l2_queryctrl query;
-  query.id = V4L2_CID_EXPOSURE_ABSOLUTE;
-  int ret = v4l2_ioctl(m_cam.getV4l2Fd(),VIDIOC_QUERYCTRL,&query);
-  if(ret == -1)
-    THROW_HW_ERROR(Error) << "Can't get exposure time range " << strerror(errno);
-
-  valid_ranges.min_exp_time = 1 / (query.maximum * 5.);
-  valid_ranges.max_exp_time = 1 / (query.minimum * 5.);
+  m_video.getMinMaxExpTime(valid_ranges.min_exp_time, valid_ranges.max_exp_time);
 
   DEB_RETURN() << DEB_VAR1(valid_ranges);
 }

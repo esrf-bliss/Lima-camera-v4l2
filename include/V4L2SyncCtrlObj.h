@@ -1,7 +1,7 @@
 //###########################################################################
 // This file is part of LImA, a Library for Image Acquisition
 //
-// Copyright (C) : 2009-2011
+// Copyright (C) : 2009-2015
 // European Synchrotron Radiation Facility
 // BP 220, Grenoble 38043
 // FRANCE
@@ -28,12 +28,12 @@ namespace lima
 {
   namespace V4L2
   {
+    class VideoCtrlObj;
     class SyncCtrlObj : public HwSyncCtrlObj
     {
-      friend class Interface;
       DEB_CLASS_NAMESPC(DebModCamera, "SyncCtrlObj", "V4L2");
     public:
-      SyncCtrlObj(Camera& cam);
+      SyncCtrlObj(VideoCtrlObj& video);
       virtual ~SyncCtrlObj();
 
       virtual bool checkTrigMode(TrigMode trig_mode);
@@ -53,7 +53,7 @@ namespace lima
       virtual void getValidRanges(ValidRangesType& valid_ranges);
 
     private:
-      Camera& m_cam;
+      VideoCtrlObj& m_video;
       int m_nb_frames;
     };
   }

@@ -1,7 +1,7 @@
 //###########################################################################
 // This file is part of LImA, a Library for Image Acquisition
 //
-// Copyright (C) : 2009-2011
+// Copyright (C) : 2009-2015
 // European Synchrotron Radiation Facility
 // BP 220, Grenoble 38043
 // FRANCE
@@ -19,47 +19,35 @@
 // You should have received a copy of the GNU General Public License
 // along with this program; if not, see <http://www.gnu.org/licenses/>.
 //###########################################################################
+#include <sys/types.h>
+#include <fcntl.h>
+#include <errno.h>
 #include "V4L2Interface.h"
 #include "V4L2DetInfoCtrlObj.h"
 #include "V4L2SyncCtrlObj.h"
+#include "V4L2VideoCtrlObj.h"
 #include "V4L2Camera.h"
  
 using namespace lima;
 using namespace lima::V4L2;
 
-class Interface::_Callback : public Camera::Callback
-{
-  DEB_CLASS_NAMESPC(DebModCamera, "Interface::_Callback", "V4L2");
-public:
-  _Callback(Interface& i) : m_interface(i) {}
-  virtual bool newFrame(int frame_id,const unsigned char* srcPt)
-  {
-    DEB_MEMBER_FUNCT();
-    DEB_PARAM() << DEB_VAR1(frame_id);
-
-    StdBufferCbMgr& buffer_mgr = m_interface.m_buffer_ctrl_obj.getBuffer();
-    void* framePt = buffer_mgr.getFrameBufferPtr(frame_id);
-    const FrameDim& fDim = buffer_mgr.getFrameDim();
-    memcpy(framePt,srcPt,fDim.getMemSize());
-    HwFrameInfoType frame_info;
-    frame_info.acq_frame_nb = frame_id;
-    return buffer_mgr.newFrameReady(frame_info);
-  }
-private:
-  Interface& m_interface;
-};
-
 Interface::Interface(const char* dev_path)
 {
   DEB_CONSTRUCTOR();
-  m_cbk = new _Callback(*this);
-  m_cam = new Camera(m_cbk,dev_path);
-  m_det_info = new DetInfoCtrlObj(m_cam->getV4l2Fd());
-  m_sync = new SyncCtrlObj(*m_cam);
+
+  m_fd = v4l2_open(dev_path,O_RDWR);
+  if(m_fd < -1)
+    THROW_HW_ERROR(Error) << "Error opening: " << dev_path 
+			  << "(" << strerror(errno) << ")";
+
+  m_video = new VideoCtrlObj(m_fd);
+  m_det_info = new DetInfoCtrlObj(*m_video);
+  m_sync = new SyncCtrlObj(*m_video);
   
   m_cap_list.push_back(HwCap(m_sync));
   m_cap_list.push_back(HwCap(m_det_info));
-  m_cap_list.push_back(HwCap(&m_buffer_ctrl_obj));
+  m_cap_list.push_back(HwCap(m_video));
+  m_cap_list.push_back(HwCap(&(m_video->getHwBufferCtrlObj())));
 }
 
 Interface::~Interface()
@@ -68,7 +56,7 @@ Interface::~Interface()
   
   delete m_sync;
   delete m_det_info;
-  delete m_cam;
+  delete m_video;
 }
 
 void Interface::getCapList(CapList &cap_list) const
@@ -85,31 +73,29 @@ void Interface::reset(ResetLevel reset_level)
 void Interface::prepareAcq()
 {
   DEB_MEMBER_FUNCT();
-  m_cam->prepareAcq();
+  m_video->prepareAcq();
 }
 
 void Interface::startAcq()
 {
   DEB_MEMBER_FUNCT();
-      
-  StdBufferCbMgr& buffer_mgr = m_buffer_ctrl_obj.getBuffer();
-  buffer_mgr.setStartTimestamp(Timestamp::now());
-
-  m_cam->startAcq();
+  
+  m_video->getBuffer().setStartTimestamp(Timestamp::now());
+  m_video->startAcq();
 }
 
 void Interface::stopAcq()
 {
   DEB_MEMBER_FUNCT();
 
-  m_cam->stopAcq();
+  m_video->stopAcq();
 }
 
 void Interface::getStatus(StatusType &status)
 {
   DEB_MEMBER_FUNCT();
 
-  m_cam->getStatus(status);
+  m_video->getStatus(status);
   
   DEB_RETURN() << DEB_VAR1(status);
 }
@@ -118,7 +104,7 @@ int Interface::getNbHwAcquiredFrames()
 {
   DEB_MEMBER_FUNCT();
   
-  int acq_frames = m_cam->getNbHwAcquiredFrames();
+  int acq_frames = m_video->getNbHwAcquiredFrames();
   
   DEB_RETURN() << DEB_VAR1(acq_frames);
   return acq_frames;

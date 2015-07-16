@@ -1,7 +1,7 @@
 //###########################################################################
 // This file is part of LImA, a Library for Image Acquisition
 //
-// Copyright (C) : 2009-2011
+// Copyright (C) : 2009-2015
 // European Synchrotron Radiation Facility
 // BP 220, Grenoble 38043
 // FRANCE
@@ -27,12 +27,12 @@ namespace lima
 {
   namespace V4L2
   {
-    class Camera;
+    class VideoCtrlObj;
     class DetInfoCtrlObj : public HwDetInfoCtrlObj
     {
       DEB_CLASS_NAMESPC(DebModCamera, "DetInfoCtrlObj", "V4L2");
     public:
-      DetInfoCtrlObj(int fd);
+      DetInfoCtrlObj(VideoCtrlObj& video);
       virtual ~DetInfoCtrlObj();
 
       virtual void getMaxImageSize(Size& max_image_size);
@@ -49,15 +49,9 @@ namespace lima
       virtual void registerMaxImageSizeCallback(HwMaxImageSizeCallback& cb);
       virtual void unregisterMaxImageSizeCallback(HwMaxImageSizeCallback& cb);
 
-      void getAvailableFormat(std::list<int>& formats) const {formats = m_available_format;}
     private:
-      void _maxImageSize(Size&);
-      void _getCurrentImageType(ImageType&);
-
       HwMaxImageSizeCallbackGen m_mis_cb_gen;
-      int			m_fd;
-      std::list<int>		m_available_format;
-      std::string 		m_det_model;
+      VideoCtrlObj&              m_video;
     };
   }
 }

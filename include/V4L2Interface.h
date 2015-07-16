@@ -30,7 +30,7 @@ namespace lima
   {
     class DetInfoCtrlObj;
     class SyncCtrlObj;
-    class Camera;
+    class VideoCtrlObj;
     class Interface : public HwInterface
     {
       DEB_CLASS_NAMESPC(DebModCamera, "Interface", "V4L2");
@@ -48,16 +48,11 @@ namespace lima
       
       virtual int getNbHwAcquiredFrames();
     private:
-      class _Callback;
-      friend class _Callback;
-
+      int 			m_fd;
       DetInfoCtrlObj* 		m_det_info;
       SyncCtrlObj*		m_sync;
-      Camera*			m_cam;
-      _Callback*		m_cbk;
-      CapList 	m_cap_list;
-      
-      SoftBufferCtrlObj m_buffer_ctrl_obj;
+      CapList 	                m_cap_list;
+      VideoCtrlObj*             m_video;
     };
   }
 }

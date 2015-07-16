@@ -1,4 +1,4 @@
-v4l2-objs = V4L2DetInfoCtrlObj.o V4L2SyncCtrlObj.o V4L2Interface.o V4L2Camera.o
+v4l2-objs = V4L2DetInfoCtrlObj.o V4L2SyncCtrlObj.o V4L2Interface.o V4L2VideoCtrlObj.o
 
 SRCS = $(v4l2-objs:.o=.cpp) 
 
@@ -25,8 +25,3 @@ check-syntax:
 	rm -f $*.d
 
 -include $(SRCS:.cpp=.P)
-
-
-.PHONY: check-syntax
-check-syntax:
-	$(CXX) -Wall -Wextra -fsyntax-only $(CXXFLAGS) $(CHK_SOURCES)

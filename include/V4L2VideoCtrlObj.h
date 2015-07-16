@@ -1,7 +1,7 @@
 //###########################################################################
 // This file is part of LImA, a Library for Image Acquisition
 //
-// Copyright (C) : 2009-2011
+// Copyright (C) : 2009-2015
 // European Synchrotron Radiation Facility
 // BP 220, Grenoble 38043
 // FRANCE
@@ -22,6 +22,12 @@
 #ifndef V4L2VIDEOCTRLOBJ_H
 #define V4L2VIDEOCTRLOBJ_H
 #include "lima/HwVideoCtrlObj.h"
+#include "lima/HwInterface.h"
+#include "lima/Debug.h"
+#include "lima/SizeUtils.h"
+#include "lima/Constants.h"
+#include <linux/videodev2.h>
+#include <libv4l2.h>
 
 namespace lima
 {
@@ -32,9 +38,10 @@ namespace lima
     {
       DEB_CLASS_NAMESPC(DebModCamera,"VideoCtrlObj","V4L2");
     public:
-      VideoCtrlObj(int fd,DetInfoCtrlObj&);
+      VideoCtrlObj(int fd);
       virtual ~VideoCtrlObj();
 
+      // Video interface
       virtual void getSupportedVideoMode(std::list<VideoMode>& list) const;
       virtual void setVideoMode(VideoMode);
       virtual void getVideoMode(VideoMode&) const;
@@ -50,16 +57,52 @@ namespace lima
       virtual void checkBin(Bin& bin);
       virtual void checkRoi(const Roi& set_roi,Roi& hw_roi);
       
-      virtual void setBin(const Bin&);
-      virtual void setRoi(const Roi&);
+      virtual void setBin(const Bin&){};
+      virtual void setRoi(const Roi&){};
+
+     // --- Detector Info
+      void getMaxImageSize(Size&);
+
+      void getCurrImageType(ImageType&);
+      void setCurrImageType(ImageType);
+      
+      void getDetectorModel(std::string& det_model);
+      // --- Syn Obj
+      void getMinMaxExpTime(double& min,double& max);
+      void setExpTime(double  exp_time);
+      void getExpTime(double& exp_time);
+      
+      void setNbHwFrames(int  nb_frames);
+      void getNbHwFrames(int& nb_frames);
+
+      // --- Acquisition interface
+      void reset(HwInterface::ResetLevel reset_level);
+      void prepareAcq();
+      void startAcq();
+      void stopAcq();
+      void getStatus(HwInterface::StatusType& status);
+      int getNbHwAcquiredFrames();
+      int getV4l2Fd() { return m_fd; }
       
     private:
-      int		m_fd;
-      DetInfoCtrlObj&	m_det_info;
-      
-      Cond		m_cond;
-      bool		m_acq_started;
-      int		m_pipes[2];
+      class _AcqThread;
+      friend class _AcqThread;
+
+      std::string 		m_det_model;
+      int 			m_fd;
+      struct v4l2_buffer 	m_buffer;
+      unsigned char* 		m_buffers[2];
+      int 			m_nb_frames;
+      int 			m_acq_frame_id;
+      bool 			m_acq_started;
+      bool			m_acq_thread_run;
+      std::list<int>		m_available_format;
+      _AcqThread*		m_acq_thread;
+      int			m_pipes[2];
+      bool			m_quit;
+      Cond			m_cond;
+      bool                      m_live;
+      double                    m_gain;
    };
   }
 }
