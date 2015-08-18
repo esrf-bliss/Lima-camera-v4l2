@@ -28,6 +28,7 @@
 #include "lima/Constants.h"
 #include <linux/videodev2.h>
 #include <libv4l2.h>
+#include <set>
 
 namespace lima
 {
@@ -87,6 +88,8 @@ namespace lima
     private:
       class _AcqThread;
       friend class _AcqThread;
+      void _unmap();
+      void _map();
 
       std::string 		m_det_model;
       int 			m_fd;
@@ -96,7 +99,7 @@ namespace lima
       int 			m_acq_frame_id;
       bool 			m_acq_started;
       bool			m_acq_thread_run;
-      std::list<int>		m_available_format;
+      std::set<VideoMode>	m_available_format;
       _AcqThread*		m_acq_thread;
       int			m_pipes[2];
       bool			m_quit;

@@ -32,7 +32,47 @@
 using namespace lima;
 using namespace lima::V4L2;
 
+///////////////
+// Video Helper
+///////////////
 
+inline bool _from_v4l2_format_2_lima(int v4l_format,VideoMode &mode)
+{
+  bool found = true;
+  switch(v4l_format)
+    {
+      /* RGB formats */
+    case V4L2_PIX_FMT_RGB555:	mode = RGB555;		break;
+    case V4L2_PIX_FMT_RGB565:	mode = RGB565;		break;
+    case V4L2_PIX_FMT_BGR24:	mode = BGR24;		break;
+    case V4L2_PIX_FMT_RGB24:	mode = RGB24;		break;
+    case V4L2_PIX_FMT_BGR32:	mode = BGR32;		break;
+    case V4L2_PIX_FMT_RGB32:	mode = RGB32;		break;
+      /* Grey formats */
+    case V4L2_PIX_FMT_GREY:	mode = Y8;		break;
+    case V4L2_PIX_FMT_Y16:	mode = Y16;		break;
+
+      /* Luminance+Chrominance formats */
+    case V4L2_PIX_FMT_YUV422P:	mode = YUV422;		break;
+    case V4L2_PIX_FMT_YUV411P:	mode = YUV411;		break;
+    case V4L2_PIX_FMT_YUV420:	mode = I420;		break;
+      /* Bayer formats - see http://www.siliconimaging.com/RGB%20Bayer.htm */
+    case V4L2_PIX_FMT_SBGGR8:	mode = BAYER_BG8;	break;
+      //case V4L2_PIX_FMT_SGBRG8:
+      //case V4L2_PIX_FMT_SGRBG8:
+    case V4L2_PIX_FMT_SBGGR16:	mode = BAYER_BG16;	break;
+
+      /* compressed formats */
+      // case V4L2_PIX_FMT_MJPEG: 	DEB_TRACE() << "As V4L2_PIX_FMT_MJPEG";break;
+      // case V4L2_PIX_FMT_JPEG: 	DEB_TRACE() << "As V4L2_PIX_FMT_JPEG";break;
+      // case V4L2_PIX_FMT_DV: 		DEB_TRACE() << "As V4L2_PIX_FMT_DV";break;
+      // case V4L2_PIX_FMT_MPEG: 	DEB_TRACE() << "As V4L2_PIX_FMT_MPEG";break;
+    default:
+      found = false;
+      break;
+    }
+  return found;
+}
 
 class VideoCtrlObj::_AcqThread : public Thread
 {
@@ -53,6 +93,7 @@ VideoCtrlObj::VideoCtrlObj(int fd) :
   m_nb_frames(1),
   m_acq_frame_id(-1),
   m_acq_started(false),
+  m_acq_thread_run(false),
   m_quit(false),
   m_live(false)
 {
@@ -60,7 +101,8 @@ VideoCtrlObj::VideoCtrlObj(int fd) :
 
   memset(&m_buffer,0,sizeof(m_buffer));
   m_buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-  
+  for (unsigned int i = 0;i < sizeof(m_buffers) / sizeof(unsigned char*);++i)
+    m_buffers[i] = NULL;
 
   struct v4l2_capability cap;
   int ret = v4l2_ioctl(m_fd, VIDIOC_QUERYCAP, &cap);
@@ -82,7 +124,9 @@ VideoCtrlObj::VideoCtrlObj(int fd) :
   for(formatdesc.index = 0;v4l2_ioctl(m_fd, VIDIOC_ENUM_FMT, &formatdesc) != -1;
       ++formatdesc.index)
     {
-      m_available_format.push_back(formatdesc.pixelformat);
+      VideoMode lima_video_mode;
+      if(_from_v4l2_format_2_lima(formatdesc.pixelformat,lima_video_mode))
+	m_available_format.insert(lima_video_mode);
       switch(formatdesc.pixelformat)
 	{
 	  /* RGB formats */
@@ -168,10 +212,28 @@ VideoCtrlObj::VideoCtrlObj(int fd) :
 	case V4L2_PIX_FMT_OV518: 	DEB_TRACE() << "As V4L2_PIX_FMT_OV518";break;
 	}
     }
+
+  VideoMode PreferredVideoMode[] ={BAYER_BG8,BAYER_BG16,
+				   I420,YUV411,YUV422,YUV444,
+				   RGB555,RGB565,
+				   RGB24,BGR24,
+				   RGB32,BGR32,
+				   Y64,Y32,Y16,Y8,};
+
+  VideoMode start_video_mode;
+  bool found_video_mode = false;
+  for(unsigned i = 0;
+      i < sizeof(PreferredVideoMode)/sizeof(VideoMode) && !found_video_mode;++i)
+    {
+      start_video_mode = PreferredVideoMode[i];
+      found_video_mode = m_available_format.find(start_video_mode) != m_available_format.end();
+   }
+
+  if(!found_video_mode)
+    THROW_HW_ERROR(Error) << "Can't find any video mode managed by lima core";
   
-  // start with 8bits
-  setCurrImageType(Bpp8);
-  
+  setVideoMode(start_video_mode);
+
   struct v4l2_streamparm streamparm;
   streamparm.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   ret = v4l2_ioctl(m_fd,VIDIOC_G_PARM,&streamparm);
@@ -216,39 +278,10 @@ VideoCtrlObj::VideoCtrlObj(int fd) :
      
   struct v4l2_control ctrl;
   ctrl.id = V4L2_CID_EXPOSURE_AUTO;
-  ctrl.value = V4L2_EXPOSURE_MANUAL;
+  ctrl.value = V4L2_EXPOSURE_AUTO;
   ret = v4l2_ioctl(m_fd,VIDIOC_S_CTRL,&ctrl);
   if(ret == -1)
-    THROW_HW_ERROR(Error) << "Can't set exposure mode to manual" << strerror(errno);
-
-  struct v4l2_requestbuffers requestbuff;
-  requestbuff.count = sizeof(m_buffers) / sizeof(unsigned char*);
-  requestbuff.type = m_buffer.type;
-  requestbuff.memory = V4L2_MEMORY_MMAP;
-  ret = v4l2_ioctl(m_fd,VIDIOC_REQBUFS,&requestbuff);
-  if(ret == -1)
-    THROW_HW_ERROR(Error) << "req. buffers: " << strerror(errno);
-
-  for (int i = 0;i < sizeof(m_buffers) / sizeof(unsigned char*);++i)
-    {
-      m_buffer.index = i;
-      ret = v4l2_ioctl(m_fd, VIDIOC_QUERYBUF, &m_buffer);
-      if (ret == -1) 
-	THROW_HW_ERROR(Error) << "querying buffer " 
-			      << i << ": " << strerror(errno);
-      if (m_buffer.memory != V4L2_MEMORY_MMAP)
-	THROW_HW_ERROR(Error)<< "memory type " 
-			     << m_buffer.memory << ": not MMAP";
-			
-      int prot_flags = PROT_READ | PROT_WRITE;
-      void *p = v4l2_mmap(NULL, m_buffer.length, prot_flags, 
-			  MAP_SHARED, m_fd, m_buffer.m.offset);
-      if (p == MAP_FAILED) 
-	THROW_HW_ERROR(Error) << "mapping buffer " 
-			      << i << ": " << strerror(errno);
-      memset(p, 0, m_buffer.length);
-      m_buffers[i] = (unsigned char *)p;
-    }
+    DEB_WARNING() << "Can't set exposure mode to auto: " << strerror(errno);
 
   if(pipe(m_pipes))
     THROW_HW_ERROR(Error) << "Can't open pipe";
@@ -271,7 +304,7 @@ VideoCtrlObj::~VideoCtrlObj()
   delete m_acq_thread;
   close(m_pipes[0]);
 
-  for(int i = 0;i < sizeof(m_buffers) / sizeof(unsigned char*);++i)
+  for(unsigned i = 0;i < sizeof(m_buffers) / sizeof(unsigned char*);++i)
     if(v4l2_munmap(m_buffers[i], m_buffer.length))
       DEB_ERROR() << "unmapping error: " << strerror(errno);
 
@@ -319,15 +352,11 @@ void VideoCtrlObj::getCurrImageType(ImageType& image_format)
   
   switch(format.fmt.pix.pixelformat)
     {
-    case V4L2_PIX_FMT_GREY:
-    case V4L2_PIX_FMT_YUYV:
-    case V4L2_PIX_FMT_YUV420:
-    case V4L2_PIX_FMT_YVU420:
-      image_format = Bpp8;break;
     case V4L2_PIX_FMT_Y16:
+    case V4L2_PIX_FMT_SBGGR16:
       image_format = Bpp16;break;
     default:
-      THROW_HW_ERROR(NotSupported) << "Not yet managed";
+      image_format = Bpp8;break;
     }
   DEB_RETURN() << DEB_VAR1(image_format);
 }
@@ -337,32 +366,31 @@ void VideoCtrlObj::setCurrImageType(ImageType image_format)
   DEB_MEMBER_FUNCT();
   DEB_PARAM() << DEB_VAR1(image_format);
 
-  struct v4l2_format format;
-  format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  VideoMode format;
   int ret = v4l2_ioctl(m_fd,VIDIOC_G_FMT,&format);
   if(ret == -1)
     THROW_HW_ERROR(Error) << "Can't get the format: " << strerror(errno);
 
   bool found = false;
-  for(std::list<int>::iterator i = m_available_format.begin();
+  for(std::set<VideoMode>::iterator i = m_available_format.begin();
       !found && i != m_available_format.end();++i)
     {
       switch(*i)
 	{
-	case V4L2_PIX_FMT_GREY:
-	case V4L2_PIX_FMT_YUV420:
-	case V4L2_PIX_FMT_YVU420:
-	  if(image_format == Bpp8)
-	    {
-	      found = true;
-	      format.fmt.pix.pixelformat = *i;
-	    }
-	  break;
-	case V4L2_PIX_FMT_Y16:
+	case Y16:
+	case BAYER_RG16:
+	case BAYER_BG16:
 	  if(image_format == Bpp16)
 	    {
 	      found = true;
-	      format.fmt.pix.pixelformat = *i;
+	      format = *i;
+	    }
+	  break;
+	default:		// 8 bits
+	  if(image_format == Bpp8)
+	    {
+	      found = true;
+	      format = *i;
 	    }
 	  break;
 	}
@@ -370,9 +398,7 @@ void VideoCtrlObj::setCurrImageType(ImageType image_format)
   if(!found)
     THROW_HW_ERROR(NotSupported) << "Not supported by the camera";
   
-  ret = v4l2_ioctl(m_fd,VIDIOC_S_FMT,&format);
-  if(ret == -1)
-    THROW_HW_ERROR(Error) << "Can't set the format: " << strerror(errno);
+  setVideoMode(format);
 }
 
 // Sync
@@ -447,7 +473,7 @@ void VideoCtrlObj::prepareAcq()
   DEB_MEMBER_FUNCT();
   m_acq_frame_id = -1;
 
-  for(int i = 0;
+  for(unsigned i = 0;
       i < sizeof(m_buffers) / sizeof(unsigned char*);++i)
     {
       m_buffer.index = i;
@@ -456,7 +482,7 @@ void VideoCtrlObj::prepareAcq()
       int ret = v4l2_ioctl(m_fd,VIDIOC_QBUF,&m_buffer);
       if(ret == -1)
 	THROW_HW_ERROR(Error) << "Error queue buff " << strerror(errno);
-      if(m_nb_frames && i > m_nb_frames) break;
+      if(m_nb_frames && i > unsigned(m_nb_frames)) break;
     }
 }
 
@@ -504,58 +530,13 @@ VideoCtrlObj::_AcqThread::_AcqThread(VideoCtrlObj& aVideo) :
 }
 
 
-// Video
-//////////
-
-inline bool _from_v4l2_format_2_lima(int v4l_format,VideoMode &mode)
-{
-  bool found = true;
-  switch(v4l_format)
-    {
-      /* RGB formats */
-    case V4L2_PIX_FMT_RGB555:	mode = RGB555;		break;
-    case V4L2_PIX_FMT_RGB565:	mode = RGB565;		break;
-    case V4L2_PIX_FMT_BGR24:	mode = BGR24;		break;
-    case V4L2_PIX_FMT_RGB24:	mode = RGB24;		break;
-    case V4L2_PIX_FMT_BGR32:	mode = BGR32;		break;
-    case V4L2_PIX_FMT_RGB32:	mode = RGB32;		break;
-      /* Grey formats */
-    case V4L2_PIX_FMT_GREY:	mode = Y8;		break;
-    case V4L2_PIX_FMT_Y16:	mode = Y16;		break;
-
-      /* Luminance+Chrominance formats */
-    case V4L2_PIX_FMT_YUV422P:	mode = YUV422;		break;
-    case V4L2_PIX_FMT_YUV411P:	mode = YUV411;		break;
-    case V4L2_PIX_FMT_YUV420:	mode = I420;		break;
-      /* Bayer formats - see http://www.siliconimaging.com/RGB%20Bayer.htm */
-    case V4L2_PIX_FMT_SBGGR8:	mode = BAYER_BG8;	break;
-      //case V4L2_PIX_FMT_SGBRG8:
-      //case V4L2_PIX_FMT_SGRBG8:
-    case V4L2_PIX_FMT_SBGGR16:	mode = BAYER_BG16;	break;
-
-      /* compressed formats */
-      // case V4L2_PIX_FMT_MJPEG: 	DEB_TRACE() << "As V4L2_PIX_FMT_MJPEG";break;
-      // case V4L2_PIX_FMT_JPEG: 	DEB_TRACE() << "As V4L2_PIX_FMT_JPEG";break;
-      // case V4L2_PIX_FMT_DV: 		DEB_TRACE() << "As V4L2_PIX_FMT_DV";break;
-      // case V4L2_PIX_FMT_MPEG: 	DEB_TRACE() << "As V4L2_PIX_FMT_MPEG";break;
-    default:
-      found = false;
-      break;
-    }
-  return found;
-}
-
 void VideoCtrlObj::getSupportedVideoMode(std::list<VideoMode>& aList) const
 {
   DEB_MEMBER_FUNCT();
-  std::list<int>& available_format = const_cast<std::list<int>&>(m_available_format);
 
-  for(std::list<int>::iterator i = available_format.begin();
-      i != available_format.end();++i)
-    {
-      VideoMode mode;
-      if(_from_v4l2_format_2_lima(*i,mode)) aList.push_back(mode);
-    }
+  for(std::set<VideoMode>::iterator i = m_available_format.begin();
+      i != m_available_format.end();++i)
+    aList.push_back(*i);
 }
 
 
@@ -592,9 +573,11 @@ void VideoCtrlObj::setVideoMode(VideoMode mode)
       THROW_HW_ERROR(NotSupported) << "Not implemented yet!";
     }
 
+  _unmap();
   ret = v4l2_ioctl(m_fd,VIDIOC_S_FMT,&format);
   if(ret == -1)
     THROW_HW_ERROR(Error) << "Can't set the format: " << strerror(errno);
+  _map();
 }
 
 void VideoCtrlObj::getVideoMode(VideoMode& mode) const
@@ -677,6 +660,67 @@ void VideoCtrlObj::setHwAutoGainMode(AutoGainMode mode)
 {
 }
 
+void VideoCtrlObj::_unmap()
+{
+  DEB_MEMBER_FUNCT();
+  if(!m_buffers[0]) return;			// nothing to free
+
+  for(unsigned i = 0;i < sizeof(m_buffers) / sizeof(unsigned char*);++i)
+    {
+      if(m_buffers[i])
+	{
+	  if(v4l2_munmap(m_buffers[i], m_buffer.length))
+	    DEB_ERROR() << "unmapping error: " << strerror(errno);
+	  m_buffers[i] = NULL;
+	}
+    }
+
+  struct v4l2_requestbuffers requestbuff;
+  requestbuff.count = 0;
+  requestbuff.type = m_buffer.type;
+  requestbuff.memory = V4L2_MEMORY_MMAP;
+  int ret = v4l2_ioctl(m_fd,VIDIOC_REQBUFS,&requestbuff);
+  if(ret == -1)
+    THROW_HW_ERROR(Error) << "req. buffers: " << strerror(errno);
+}
+
+void VideoCtrlObj::_map()
+{
+  DEB_MEMBER_FUNCT();
+
+  struct v4l2_requestbuffers requestbuff;
+  requestbuff.count = sizeof(m_buffers) / sizeof(unsigned char*);
+  requestbuff.type = m_buffer.type;
+  requestbuff.memory = V4L2_MEMORY_MMAP;
+  int ret = v4l2_ioctl(m_fd,VIDIOC_REQBUFS,&requestbuff);
+
+  if(ret == -1)
+    THROW_HW_ERROR(Error) << "req. buffers: " << strerror(errno);
+
+  for (unsigned int i = 0;i < sizeof(m_buffers) / sizeof(unsigned char*);++i)
+    {
+      m_buffer.index = i;
+      ret = v4l2_ioctl(m_fd, VIDIOC_QUERYBUF, &m_buffer);
+      if (ret == -1) 
+	THROW_HW_ERROR(Error) << "querying buffer " 
+			      << i << ": " << strerror(errno);
+      if (m_buffer.memory != V4L2_MEMORY_MMAP)
+	THROW_HW_ERROR(Error)<< "memory type " 
+			     << m_buffer.memory << ": not MMAP";
+			
+      int prot_flags = PROT_READ | PROT_WRITE;
+      void *p = v4l2_mmap(NULL, m_buffer.length, prot_flags, 
+			  MAP_SHARED, m_fd, m_buffer.m.offset);
+      if (p == MAP_FAILED) 
+	THROW_HW_ERROR(Error) << "mapping buffer " 
+			      << i << ": " << strerror(errno);
+      memset(p, 0, m_buffer.length);
+      m_buffers[i] = (unsigned char *)p;
+    }
+
+
+
+}
 //---------------------------
 //- _AcqThread::threadFunction()
 //---------------------------
