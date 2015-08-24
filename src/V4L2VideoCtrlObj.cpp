@@ -95,7 +95,8 @@ VideoCtrlObj::VideoCtrlObj(int fd) :
   m_acq_started(false),
   m_acq_thread_run(false),
   m_quit(false),
-  m_live(false)
+  m_live(false),
+  m_is_prepared(false)
 {
   DEB_CONSTRUCTOR();
 
@@ -472,18 +473,22 @@ void VideoCtrlObj::prepareAcq()
 {
   DEB_MEMBER_FUNCT();
   m_acq_frame_id = -1;
+  
 
-  for(unsigned i = 0;
-      i < sizeof(m_buffers) / sizeof(unsigned char*);++i)
-    {
-      m_buffer.index = i;
-      //this will fail when calling prepareAcq a second time
-      // maybe some fields in m_buffer have to be reset first.
-      int ret = v4l2_ioctl(m_fd,VIDIOC_QBUF,&m_buffer);
-      if(ret == -1)
-	THROW_HW_ERROR(Error) << "Error queue buff " << strerror(errno);
-      if(m_nb_frames && i > unsigned(m_nb_frames)) break;
-    }
+  if (!m_is_prepared) {
+    for(unsigned i = 0;
+	i < sizeof(m_buffers) / sizeof(unsigned char*);++i)
+      {
+	m_buffer.index = i;
+	//this will fail when calling prepareAcq a second time
+	// maybe some fields in m_buffer have to be reset first.
+	int ret = v4l2_ioctl(m_fd,VIDIOC_QBUF,&m_buffer);
+	if(ret == -1)
+	  THROW_HW_ERROR(Error) << "Error queue buff " << strerror(errno);
+	if(m_nb_frames && i > unsigned(m_nb_frames)) break;
+      }
+    m_is_prepared = true;
+  }
 }
 
 void VideoCtrlObj::startAcq()
@@ -497,6 +502,8 @@ void VideoCtrlObj::startAcq()
   AutoMutex aLock(m_cond.mutex());
   m_acq_started = true;
   m_cond.broadcast();
+
+  m_is_prepared = false;
 }
 
 void VideoCtrlObj::stopAcq()

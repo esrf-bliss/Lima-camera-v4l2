@@ -106,6 +106,7 @@ namespace lima
       Cond			m_cond;
       bool                      m_live;
       double                    m_gain;
+      bool                      m_is_prepared;
    };
   }
 }
