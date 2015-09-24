@@ -96,7 +96,8 @@ VideoCtrlObj::VideoCtrlObj(int fd) :
   m_acq_thread_run(false),
   m_quit(false),
   m_live(false),
-  m_is_prepared(false)
+  m_autoexp_supported(false),
+  m_exptime_supported(false)
 {
   DEB_CONSTRUCTOR();
 
@@ -243,7 +244,7 @@ VideoCtrlObj::VideoCtrlObj(int fd) :
 
   if(streamparm.parm.capture.capability & V4L2_CAP_TIMEPERFRAME)
     {
-      DEB_TRACE() << "Time per frame supported";
+      DEB_ALWAYS() << "Time per frame supported";
       struct v4l2_format format;
       format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
  
@@ -275,15 +276,20 @@ VideoCtrlObj::VideoCtrlObj(int fd) :
 	    DEB_TRACE() << "Continuous";
 	    
 	}
-    }
+    } else {
+    DEB_ALWAYS() << "Time per frame NOT supported";    
+  }
      
   struct v4l2_control ctrl;
   ctrl.id = V4L2_CID_EXPOSURE_AUTO;
   ctrl.value = V4L2_EXPOSURE_AUTO;
   ret = v4l2_ioctl(m_fd,VIDIOC_S_CTRL,&ctrl);
-  if(ret == -1)
-    DEB_WARNING() << "Can't set exposure mode to auto: " << strerror(errno);
-
+  if(ret == -1) {
+    m_autoexp_supported = false;
+    DEB_WARNING() << "Auto Exposure NOT supported";
+  } else {
+    m_autoexp_supported = true;
+  }
   if(pipe(m_pipes))
     THROW_HW_ERROR(Error) << "Can't open pipe";
 
@@ -412,24 +418,33 @@ void VideoCtrlObj::getMinMaxExpTime(double& min,double& max)
   struct v4l2_queryctrl query;
   query.id = V4L2_CID_EXPOSURE_ABSOLUTE;
   int ret = v4l2_ioctl(m_fd,VIDIOC_QUERYCTRL,&query);
-  if(ret == -1)
-    THROW_HW_ERROR(Error) << "Can't get exposure time range " << strerror(errno);
-
-  min = 1 / (query.maximum * 5.),max = 1 / (query.minimum * 5.);
-  DEB_RETURN() << DEB_VAR2(min,max);
+  if(ret == -1) {
+    DEB_WARNING() << "Exposure control not supported";
+    m_exptime_supported = false;
+    // open the range and ignore new settings
+    min=0; max=1e6;
+  } else {
+    m_exptime_supported = true;
+    min = 1 / (query.maximum * 5.),max = 1 / (query.minimum * 5.);
+    DEB_RETURN() << DEB_VAR2(min,max);
+  }    
 }
+
 void VideoCtrlObj::getExpTime(double &exp_time)
 {
   DEB_MEMBER_FUNCT();
 
-  struct v4l2_control ctrl;
-  ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
-  int ret = v4l2_ioctl(m_fd,VIDIOC_G_CTRL,&ctrl);
-  if(ret == -1)
-    THROW_HW_ERROR(Error) << "Can't get exposure time " << strerror(errno);
-  
-  exp_time = 1 / (ctrl.value * 5.); // Fixed me!!!
- 
+  if (m_exptime_supported) {
+    struct v4l2_control ctrl;
+    ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
+    int ret = v4l2_ioctl(m_fd,VIDIOC_G_CTRL,&ctrl);
+    if(ret == -1)
+      THROW_HW_ERROR(Error) << "Can't get exposure time " << strerror(errno);
+    
+    exp_time = 1 / (ctrl.value * 5.); // Fixed me!!!
+  } else {
+    DEB_WARNING() << "Exposure control not supported, just ignore value !!";
+  }
   DEB_RETURN() << DEB_VAR1(exp_time);
 }
 
@@ -438,12 +453,17 @@ void VideoCtrlObj::setExpTime(double exp_time)
   DEB_MEMBER_FUNCT();
   DEB_PARAM() << DEB_VAR1(exp_time);
 
-  struct v4l2_control ctrl;
-  ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
-  ctrl.value = 5 / exp_time ;
-  int ret = v4l2_ioctl(m_fd,VIDIOC_S_CTRL,&ctrl);
-  if(ret == -1)
-    THROW_HW_ERROR(Error) << "Can't set exposure time" << strerror(errno);
+  if (m_exptime_supported) {
+    struct v4l2_control ctrl;
+    ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
+    ctrl.value = 5 / exp_time ;
+    int ret = v4l2_ioctl(m_fd,VIDIOC_S_CTRL,&ctrl);
+    if(ret == -1)
+      THROW_HW_ERROR(Error) << "Can't set exposure time" << strerror(errno);
+  } else {
+    DEB_WARNING() << "Exposure control not supported, just ignore value !!";
+  }
+
 }
 
 void VideoCtrlObj::setNbHwFrames(int nb_frames)
@@ -474,21 +494,24 @@ void VideoCtrlObj::prepareAcq()
   DEB_MEMBER_FUNCT();
   m_acq_frame_id = -1;
   
-
-  if (!m_is_prepared) {
-    for(unsigned i = 0;
-	i < sizeof(m_buffers) / sizeof(unsigned char*);++i)
-      {
-	m_buffer.index = i;
-	//this will fail when calling prepareAcq a second time
-	// maybe some fields in m_buffer have to be reset first.
-	int ret = v4l2_ioctl(m_fd,VIDIOC_QBUF,&m_buffer);
-	if(ret == -1)
-	  THROW_HW_ERROR(Error) << "Error queue buff " << strerror(errno);
-	if(m_nb_frames && i > unsigned(m_nb_frames)) break;
-      }
-    m_is_prepared = true;
-  }
+  
+  // If VIDIOC_QBUF called, stream must be set on/off before new buffer query
+  // The only trick I find to make it works !!
+  enum v4l2_buf_type buff_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  if(v4l2_ioctl(m_fd,VIDIOC_STREAMON,&buff_type) == -1)
+    THROW_HW_ERROR(Error) << "Error starting stream : " << strerror(errno);
+  
+  if(v4l2_ioctl(m_fd,VIDIOC_STREAMOFF,&buff_type) == -1)
+    DEB_ERROR() << "Error stopping stream : " << strerror(errno);
+  for(unsigned i = 0;
+      i < sizeof(m_buffers) / sizeof(unsigned char*);++i)
+    {
+      m_buffer.index = i;
+      int ret = v4l2_ioctl(m_fd,VIDIOC_QBUF,&m_buffer);
+      if(ret == -1)
+	THROW_HW_ERROR(Error) << "Error queue buff " << strerror(errno);
+      if(m_nb_frames && i > unsigned(m_nb_frames)) break;
+    }
 }
 
 void VideoCtrlObj::startAcq()
@@ -503,7 +526,6 @@ void VideoCtrlObj::startAcq()
   m_acq_started = true;
   m_cond.broadcast();
 
-  m_is_prepared = false;
 }
 
 void VideoCtrlObj::stopAcq()
@@ -609,10 +631,13 @@ void VideoCtrlObj::setLive(bool start_flag)
   m_live = start_flag;
   if(start_flag)			// start
     {
+
+      setNbHwFrames(0);
+      
       // prepare to request buffers
       prepareAcq();
 
-      setNbHwFrames(0);
+
       enum v4l2_buf_type buff_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
       if(v4l2_ioctl(m_fd,VIDIOC_STREAMON,&buff_type) == -1)
 	THROW_HW_ERROR(Error) << "Error starting stream : " << strerror(errno);
@@ -665,6 +690,12 @@ bool VideoCtrlObj::checkAutoGainMode(AutoGainMode mode) const
 
 void VideoCtrlObj::setHwAutoGainMode(AutoGainMode mode)
 {
+}
+
+bool VideoCtrlObj::isAutoExposureSupported()
+{
+  DEB_MEMBER_FUNCT();
+  return m_autoexp_supported;
 }
 
 void VideoCtrlObj::_unmap()

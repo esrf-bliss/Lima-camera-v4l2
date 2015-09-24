@@ -85,6 +85,9 @@ namespace lima
       int getNbHwAcquiredFrames();
       int getV4l2Fd() { return m_fd; }
       
+      // others
+      bool isAutoExposureSupported();
+
     private:
       class _AcqThread;
       friend class _AcqThread;
@@ -106,7 +109,8 @@ namespace lima
       Cond			m_cond;
       bool                      m_live;
       double                    m_gain;
-      bool                      m_is_prepared;
+      bool                      m_autoexp_supported;
+      bool                      m_exptime_supported;
    };
   }
 }

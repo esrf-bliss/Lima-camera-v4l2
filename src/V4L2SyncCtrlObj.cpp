@@ -82,10 +82,11 @@ bool SyncCtrlObj::checkAutoExposureMode(AutoExposureMode mode) const
 {
   DEB_MEMBER_FUNCT();
   
-  bool check_flag = mode == HwSyncCtrlObj::ON;
   
-  DEB_RETURN() << DEB_VAR1(check_flag);
-  return check_flag;
+  bool check_flag = mode == HwSyncCtrlObj::ON;
+  if (!m_video.isAutoExposureSupported() && mode == HwSyncCtrlObj::ON)
+    return false;
+  else return true;
 }
 
 void SyncCtrlObj::setLatTime(double lat_time)
