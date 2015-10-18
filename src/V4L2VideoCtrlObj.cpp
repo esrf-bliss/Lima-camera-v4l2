@@ -235,50 +235,6 @@ VideoCtrlObj::VideoCtrlObj(int fd) :
     THROW_HW_ERROR(Error) << "Can't find any video mode managed by lima core";
   
   setVideoMode(start_video_mode);
-
-  struct v4l2_streamparm streamparm;
-  streamparm.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-  ret = v4l2_ioctl(m_fd,VIDIOC_G_PARM,&streamparm);
-  if(ret == -1)
-    THROW_HW_ERROR(Error) << "Error querying stream param : " << strerror(errno);
-
-  if(streamparm.parm.capture.capability & V4L2_CAP_TIMEPERFRAME)
-    {
-      DEB_ALWAYS() << "Time per frame supported";
-      struct v4l2_format format;
-      format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
- 
-      v4l2_ioctl(m_fd,VIDIOC_G_FMT,&format);
-
-      struct v4l2_frmivalenum frmivalenum;
-      frmivalenum.width = format.fmt.pix.width;
-      frmivalenum.height = format.fmt.pix.height;
-      frmivalenum.pixel_format = format.fmt.pix.pixelformat;
-      for(frmivalenum.index = 0;v4l2_ioctl(m_fd,VIDIOC_ENUM_FRAMEINTERVALS,&frmivalenum) != -1;
-	  ++frmivalenum.index)
-	{
-	  if(frmivalenum.type == V4L2_FRMIVAL_TYPE_DISCRETE)
-	    DEB_TRACE() << frmivalenum.discrete.numerator 
-			<< "/" << frmivalenum.discrete.denominator;
-	  else if(frmivalenum.type == V4L2_FRMIVAL_TYPE_STEPWISE)
-	    {
-	      DEB_TRACE() << "min : " 
-			  << frmivalenum.stepwise.min.numerator << "/"
-			  << frmivalenum.stepwise.min.denominator;
-	      DEB_TRACE() << "max : " 
-			  << frmivalenum.stepwise.max.numerator << "/"
-			  << frmivalenum.stepwise.max.denominator;
-	      DEB_TRACE() << "step : " 
-			  << frmivalenum.stepwise.step.numerator << "/"
-			  << frmivalenum.stepwise.step.denominator;
-	    }
-	  else
-	    DEB_TRACE() << "Continuous";
-	    
-	}
-    } else {
-    DEB_ALWAYS() << "Time per frame NOT supported";    
-  }
      
   struct v4l2_control ctrl;
   ctrl.id = V4L2_CID_EXPOSURE_AUTO;
@@ -606,6 +562,85 @@ void VideoCtrlObj::setVideoMode(VideoMode mode)
   ret = v4l2_ioctl(m_fd,VIDIOC_S_FMT,&format);
   if(ret == -1)
     THROW_HW_ERROR(Error) << "Can't set the format: " << strerror(errno);
+    
+  //Setting the frame rate to the max
+  struct v4l2_streamparm streamparm;
+  streamparm.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  ret = v4l2_ioctl(m_fd,VIDIOC_G_PARM,&streamparm);
+  if(ret == -1)
+    THROW_HW_ERROR(Error) << "Error querying stream param : " << strerror(errno);
+
+  if(streamparm.parm.capture.capability & V4L2_CAP_TIMEPERFRAME)
+  {
+    DEB_ALWAYS() << "Time per frame supported";
+    struct v4l2_format format;
+    format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+ 
+    v4l2_ioctl(m_fd,VIDIOC_G_FMT,&format);
+
+    struct v4l2_frmivalenum frmivalenum;
+    frmivalenum.width = format.fmt.pix.width;
+    frmivalenum.height = format.fmt.pix.height;
+    frmivalenum.pixel_format = format.fmt.pix.pixelformat;
+    __u32 denominator = 1;
+    __u32 numerator = 1;
+    for(frmivalenum.index = 0;
+        v4l2_ioctl(m_fd,VIDIOC_ENUM_FRAMEINTERVALS,&frmivalenum) != -1;
+        ++frmivalenum.index)
+    {
+      if(frmivalenum.type == V4L2_FRMIVAL_TYPE_DISCRETE)
+      {
+        DEB_TRACE() << frmivalenum.discrete.numerator 
+                    << "/" << frmivalenum.discrete.denominator;
+        if( 1.0*frmivalenum.discrete.denominator /
+                        frmivalenum.discrete.numerator >
+            1.0*denominator / numerator)
+        {
+            denominator = frmivalenum.discrete.denominator;
+            numerator = frmivalenum.discrete.numerator;
+        }
+      }
+      else
+      {
+          //Either V4L2_FRMIVAL_TYPE_STEPWISE or V4L2_FRMIVAL_TYPE_CONTINUOUS
+          if(frmivalenum.type == V4L2_FRMIVAL_TYPE_STEPWISE)
+            DEB_TRACE() << "Stepwise";
+          else
+            DEB_TRACE() << "Continuous";
+          
+          DEB_TRACE() << "min : " 
+              << frmivalenum.stepwise.min.numerator << "/"
+              << frmivalenum.stepwise.min.denominator;
+          DEB_TRACE() << "max : " 
+              << frmivalenum.stepwise.max.numerator << "/"
+              << frmivalenum.stepwise.max.denominator;
+          DEB_TRACE() << "step : " 
+              << frmivalenum.stepwise.step.numerator << "/"
+              << frmivalenum.stepwise.step.denominator;
+              
+          denominator = frmivalenum.stepwise.max.denominator;
+          numerator = frmivalenum.stepwise.max.numerator;
+          
+          //We exit the loop now
+          //since there is no index>0 in this case
+          //(stepwise/continuous)
+          break;
+        }
+        //else
+          //DEB_TRACE() << "Continuous";
+     
+    }
+    DEB_TRACE() << "Setting fps to " << 1.0*denominator / numerator <<
+                    "(" << denominator << "/" << numerator << ")";
+    streamparm.parm.capture.timeperframe.denominator=denominator;
+    streamparm.parm.capture.timeperframe.numerator=numerator;
+    ret = v4l2_ioctl(m_fd,VIDIOC_S_PARM,&streamparm);
+    if(ret == -1)
+      THROW_HW_ERROR(Error) << "Error setting frame rate : " << strerror(errno);
+  } else {
+    DEB_ALWAYS() << "Time per frame NOT supported";    
+  }
+    
   _map();
 }
 
