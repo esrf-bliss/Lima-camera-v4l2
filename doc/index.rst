@@ -85,29 +85,32 @@ The V4L2 camera plugin is a mostly a **Video** device which provides a limited i
 
   The v4l2 cameras are pure video device we are supporting the commonly used formats:
 
- **Bayer formats**
+  **Bayer formats**
    - BAYER_BG8
    - BAYER_BG16
- **Luminence+chrominance formats**  
+
+  **Luminence+chrominance formats**  
    - YUV422
    - UYV411
    - YUV444
    - I420
- **RGB formats**
+
+  **RGB formats**
    - RGB555
    - RGB565
    - BGR24
    - RGB24
    - BGR32
    - RGB32
- **Monochrome formats**
-    - Y8   
-    - Y16
-    - Y32
-    - Y64 
 
-  Use get/setVideoMode() on video object for video format. The lima plugin  will initialise the camera
-  to a *preferred* video format by choosing one of the format the camera supports but through ordered
+  **Monochrome formats**
+   - Y8   
+   - Y16
+   - Y32
+   - Y64 
+
+  Use get/setMode() methods of the *video* object (i.e CtControl::video()) for accessing the video format.
+  The lima plugin  will initialise the camera to a *preferred* video format by choosing one of the format the camera supports but through ordered
   list above.
 
 
