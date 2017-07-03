@@ -44,10 +44,10 @@ endif()
 target_link_libraries(lima${NAME} limacore)
 target_link_libraries(lima${NAME} ${V4L2_LIB})
 
-include(CameraVERSION)
+limatools_set_library_soversion(lima${NAME} "VERSION")
 install(TARGETS lima${NAME} LIBRARY DESTINATION lib)
 
 if(LIMA_ENABLE_PYTHON)
-    include(CameraRunSIP)
+    limatools_run_sip_for_camera(${NAME})
     install(FILES python/__init__.py DESTINATION "${PYTHON_SITE_PACKAGES_DIR}/Lima/V4l2")
 endif()
