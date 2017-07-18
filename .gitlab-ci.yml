@@ -9,7 +9,7 @@ build :
     - cd ..
     - cp -R /root/* .
     - ./install_lima_submodule
-    - cd ../lima/camera/v4l2
+    - cd lima/camera/v4l2
     - cp -R ../../../lima-camera-v4l2/* .
     - cd ../..
     - ./install.sh camera/v4l2 python tests
