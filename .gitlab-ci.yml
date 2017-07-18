@@ -1,0 +1,34 @@
+
+stages:
+  - build
+  - test
+
+build :
+  stage: build
+  script:
+    - cd ..
+    - cp -R /root/* .
+    - ./install_lima_submodule
+    - cd ../lima/camera/v4l2
+    - cp -R ../../../lima-camera-v4l2/* .
+    - cd ../..
+    - ./install.sh camera/v4l2 python tests
+    - cd ../lima-camera-v4l2
+    - cp -R ../lima .
+  artifacts:
+    paths:
+    - lima/
+  only:
+    - cmake
+    
+test :
+  stage: test
+  dependencies:
+    - build
+  script:
+    - cd ..
+    - cp -R lima-camera-v4l2/lima .
+    - cd lima/cmake-build/
+    - ctest --timeout 10
+  only:
+    - cmake
