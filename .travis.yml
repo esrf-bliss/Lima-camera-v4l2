@@ -10,7 +10,7 @@ services:
   
 before_install:
   - docker pull esrfbliss/lima-ci-debian8
-  - docker run --name lima-ci-docker v $(pwd):/src-ci/ -dit esrfbliss/lima-ci-debian8
+  - docker run --name lima-ci-docker -v $(pwd):/src-ci/ -dit esrfbliss/lima-ci-debian8
   
 script:
   - echo "Unset esrf proxy from docker and cloning GitHub repositories"
