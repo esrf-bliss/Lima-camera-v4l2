@@ -45,7 +45,8 @@ target_link_libraries(lima${NAME} limacore)
 target_link_libraries(lima${NAME} ${V4L2_LIB})
 
 limatools_set_library_soversion(lima${NAME} "VERSION")
-install(TARGETS lima${NAME} LIBRARY DESTINATION lib)
+include(GNUInstallDirs)
+install(TARGETS lima${NAME} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 if(LIMA_ENABLE_PYTHON)
     limatools_run_sip_for_camera(${NAME})
