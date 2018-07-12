@@ -23,8 +23,6 @@
 ############################################################################
 set(NAME "v4l2")
 
-set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--add-needed")
-
 #SOURCEs
 set(${NAME}_srcs src/V4L2Camera.cpp  src/V4L2Interface.cpp
 	 src/V4L2DetInfoCtrlObj.cpp src/V4L2SyncCtrlObj.cpp
