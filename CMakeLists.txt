@@ -56,7 +56,7 @@ if (CAMERA_MASTER_PROJECT)
 endif()
 
 # CMake additional macros
-set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake ${LIMA_CMAKE_INCLUDE_DIRS} ${CMAKE_MODULE_PATH})
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${LIMA_CMAKE_INCLUDE_DIRS} ${CMAKE_MODULE_PATH})
 
 # Set version
 include(project_version)
@@ -107,7 +107,7 @@ add_library(v4l2 SHARED
 generate_export_header(v4l2)
 # Set version
 set_target_properties(v4l2 PROPERTIES
-    VERSION "${VERSION}"
+    VERSION "${PROJECT_VERSION}"
     SOVERSION "${PACKAGE_VERSION_MAJOR}.${PACKAGE_VERSION_MINOR}")
 
 # Add dependencies
