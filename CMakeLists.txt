@@ -62,9 +62,11 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${LIMA_CMAKE_INCLUDE_DIR
 include(project_version)
 
 # Enable python binding code compilation using sip generator
-option(CAMERA_ENABLE_PYTHON "compile python binding code?" LIMA_ENABLE_PYTHON)
+if (CAMERA_MASTER_PROJECT)
+  option(LIMA_ENABLE_PYTHON "compile python binding code?" OFF)
+endif()
 
-if (CAMERA_ENABLE_PYTHON)
+if (LIMA_ENABLE_PYTHON)
   # Find python interpreter and libs
   find_package(PythonInterp)
   find_package(PythonLibs)
@@ -126,7 +128,7 @@ target_include_directories(v4l2 PUBLIC $<BUILD_INTERFACE:${V4L2_INCLUDE_DIRS}>)
 target_link_libraries(v4l2 PUBLIC ${V4L2_LIBRARIES})
 
 # Binding code for python
-if(CAMERA_ENABLE_PYTHON)
+if(LIMA_ENABLE_PYTHON)
   include(LimaTools)
   limatools_run_sip_for_camera(v4l2)
 endif()
@@ -166,7 +168,7 @@ install(
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-if(CAMERA_ENABLE_PYTHON)
+if(LIMA_ENABLE_PYTHON)
   install(
     DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/python/
     DESTINATION "${PYTHON_SITE_PACKAGES_DIR}/Lima/V4l2"
