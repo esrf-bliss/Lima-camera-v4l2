@@ -31,11 +31,11 @@
 using namespace lima;
 using namespace lima::V4L2;
 
-Interface::Interface(const char* dev_path)
+Interface::Interface(const std::string&  dev_path)
 {
   DEB_CONSTRUCTOR();
 
-  m_fd = v4l2_open(dev_path,O_RDWR);
+  m_fd = v4l2_open(dev_path.c_str(),O_RDWR);
   if(m_fd < -1)
     THROW_HW_ERROR(Error) << "Error opening: " << dev_path 
 			  << "(" << strerror(errno) << ")";

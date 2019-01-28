@@ -35,7 +35,7 @@ namespace lima
     {
       DEB_CLASS_NAMESPC(DebModCamera, "Interface", "V4L2");
     public:
-      Interface(const char* dev_path = "/dev/video0");
+      Interface(const std::string& dev_path = "/dev/video0");
       virtual ~Interface();
 
       virtual void getCapList(CapList &) const;
