@@ -28,7 +28,7 @@ namespace V4L2
 #include <V4L2Interface.h>
 %End
 public:
-    Interface(const char* dev_path = "/dev/video0");
+    Interface(const std::string& dev_path = "/dev/video0");
     virtual ~Interface();
 
     virtual void getCapList(std::vector<HwCap> &cap_list /Out/) const;

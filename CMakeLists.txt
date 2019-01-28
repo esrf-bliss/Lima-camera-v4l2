@@ -109,6 +109,7 @@ add_library(v4l2 SHARED
 generate_export_header(v4l2)
 # Set version
 set_target_properties(v4l2 PROPERTIES
+    OUTPUT_NAME "lima${PROJECT_NAME_LOWER}"
     VERSION "${PROJECT_VERSION}"
     SOVERSION "${PACKAGE_VERSION_MAJOR}.${PACKAGE_VERSION_MINOR}")
 
