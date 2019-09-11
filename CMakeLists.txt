@@ -1,32 +1,30 @@
 ###########################################################################
 # This file is part of LImA, a Library for Image Acquisition
 #
-# Copyright (C) : 2009-2017
-# European Synchrotron Radiation Facility
-# CS40220 38043 Grenoble Cedex 9
-# FRANCE
+#  Copyright (C) : 2009-2019
+#  European Synchrotron Radiation Facility
+#  CS40220 38043 Grenoble Cedex 9
+#  FRANCE
 #
-# Contact: lima@esrf.fr
+#  Contact: lima@esrf.fr
 #
-# This is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 3 of the License, or
-# (at your option) any later version.
+#  This is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 3 of the License, or
+#  (at your option) any later version.
 #
-# This software is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+#  This software is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, see <http://www.gnu.org/licenses/>.
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, see <http://www.gnu.org/licenses/>.
 ############################################################################
 
 cmake_minimum_required(VERSION 3.1)
 
 project(v4l2)
-
-set(NAME "v4l2") # This is used by LimaTools
 
 # Include additional modules that are used inconditionnaly
 include(GNUInstallDirs)
@@ -52,11 +50,13 @@ if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 endif()
 
 if (CAMERA_MASTER_PROJECT)
-  find_package(Lima REQUIRED)
+  find_package(Lima REQUIRED COMPONENTS devel tools)
 endif()
 
 # CMake additional macros
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${LIMA_CMAKE_INCLUDE_DIRS} ${CMAKE_MODULE_PATH})
+
+include(LimaTools)
 
 # Set version
 include(project_version)
@@ -64,31 +64,11 @@ include(project_version)
 # Enable python binding code compilation using sip generator
 if (CAMERA_MASTER_PROJECT)
   option(LIMA_ENABLE_PYTHON "compile python binding code?" OFF)
-endif()
+  option(LIMA_ENABLE_PYTANGO_SERVER "install python tango server?" OFF)
 
-if (LIMA_ENABLE_PYTHON)
-  # Find python interpreter and libs
-  find_package(PythonInterp)
-  find_package(PythonLibs)
-  if(${PYTHONINTERP_FOUND})
-    # python site-packages folder
-    execute_process(
-      COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print (get_python_lib())"
-      OUTPUT_VARIABLE _PYTHON_SITE_PACKAGES_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if (LIMA_ENABLE_PYTHON)
+    limatools_find_python_and_sip()
   endif()
-
-  set(PYTHON_SITE_PACKAGES_DIR ${_PYTHON_SITE_PACKAGES_DIR} CACHE PATH "where should python modules be installed?")
-
-  find_package(SIP REQUIRED)
-  include(SIPMacros)
-  if(WIN32)
-    set(SIP_TAGS WIN32_PLATFORM)
-  elseif(UNIX)
-    set(SIP_TAGS POSIX_PLATFORM)
-  endif(WIN32)
-  set(SIP_EXTRA_OPTIONS -e -g)
-
-  find_package(NumPy REQUIRED)
 endif()
 
 find_package(V4L2 REQUIRED)
@@ -130,7 +110,6 @@ target_link_libraries(v4l2 PUBLIC ${V4L2_LIBRARIES})
 
 # Binding code for python
 if(LIMA_ENABLE_PYTHON)
-  include(LimaTools)
   limatools_run_sip_for_camera(v4l2)
 endif()
 
@@ -173,7 +152,10 @@ if(LIMA_ENABLE_PYTHON)
   install(
     DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/python/
     DESTINATION "${PYTHON_SITE_PACKAGES_DIR}/Lima/V4l2"
-  )
+    )
+  if (LIMA_ENABLE_PYTANGO_SERVER)
+    add_subdirectory(tango)
+  endif()
 endif()
 
 ## Tests
