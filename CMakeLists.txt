@@ -1,7 +1,7 @@
 ###########################################################################
 # This file is part of LImA, a Library for Image Acquisition
 #
-#  Copyright (C) : 2009-2019
+#  Copyright (C) : 2009-2025
 #  European Synchrotron Radiation Facility
 #  CS40220 38043 Grenoble Cedex 9
 #  FRANCE
@@ -22,7 +22,7 @@
 #  along with this program; if not, see <http://www.gnu.org/licenses/>.
 ############################################################################
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.6)
 
 project(v4l2)
 
@@ -104,7 +104,7 @@ target_link_libraries(v4l2 PUBLIC limacore)
 
 target_compile_definitions(v4l2 PUBLIC ${V4L2_DEFINITIONS})
 
-target_include_directories(v4l2 PUBLIC $<BUILD_INTERFACE:${V4L2_INCLUDE_DIRS}>)
+target_include_directories(v4l2 PUBLIC ${V4L2_INCLUDE_DIRS})
 
 target_link_libraries(v4l2 PUBLIC ${V4L2_LIBRARIES})
 
